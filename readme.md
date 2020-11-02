@@ -1,4 +1,12 @@
-# SQLite Driver for YOURLS 1.7.10
+# An unofficial SQLite Driver for YOURLS 1.7.10
+
+This is a fork of a [fork](https://github.com/reanimus/yourls-sqlite) of the [original](https://github.com/ozh/yourls-sqlite), but now outdated SQLite driver for [YOURLS](https://yourls.org/). To my knowledge, it's the only actively maintained version.
+
+## A note on encoding
+
+YOURLS switched to the *UTF8mb4* encoding for the official MySQL database driver for *v1.7.10*. Since SQLite uses *UTF8*, and has no support for the new character encoding format, using this unofficial driver will not allow you to create short URLs with extended characters stored as 4 Bytes, such as emojis.
+
+### From the original README
 
 ## What
 
