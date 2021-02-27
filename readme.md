@@ -1,6 +1,12 @@
-# An unofficial SQLite Driver for YOURLS 1.7.10
+# An unofficial SQLite Driver for YOURLS 1.8
 
-This is a fork of a [fork](https://github.com/reanimus/yourls-sqlite) of the [original](https://github.com/ozh/yourls-sqlite), but now outdated SQLite driver for [YOURLS](https://yourls.org/). To my knowledge, it's the only actively maintained version.
+This is a fork of a [fork](https://github.com/reanimus/yourls-sqlite) of the [original](https://github.com/ozh/yourls-sqlite), but now outdated SQLite driver for [YOURLS](https://yourls.org/). To my knowledge, it's the only actively maintained version, now with a readily available Docker image (thanks [@Niduroki](https://github.com/Niduroki)).
+
+### Running in a container with Podman or Docker
+
+If you'd like to run Yourls with this Sqlite driver in a production-ready container, you can use [Podman](https://podman.io) or [Docker](https://www.docker.com).
+
+You can get an image from [Niduroki/docker-yourls-sqlite](https://github.com/Niduroki/docker-yourls-sqlite).
 
 ## A note on encoding
 
@@ -10,7 +16,7 @@ YOURLS switched to the *UTF8mb4* encoding for the official MySQL database driver
 
 ## What
 
-This is a custom DB layer that allows to use YOURLS with PDO + SQLite. This requires **YOURLS 1.7.10**, not before, not after. See [YOURLS releases](https://github.com/YOURLS/YOURLS/releases).
+This is a custom DB layer that allows to use YOURLS with PDO + SQLite. This requires **YOURLS 1.8**, not before, not after. See [YOURLS releases](https://github.com/YOURLS/YOURLS/releases).
 
 This is experimental, mostly to show how it should be done, ie without [hacking core file](https://github.com/YOURLS/YOURLS/wiki/Dont-Hack-Core) - see [YOURLS issue #1337](https://github.com/YOURLS/YOURLS/issues/1337) (1337, for real!).
 
