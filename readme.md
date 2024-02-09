@@ -10,8 +10,6 @@ This is a fork of a [fork](https://github.com/Flameborn/yourls-sqlite) in an att
 
 YOURLS switched to the *UTF8mb4* encoding for the official MySQL database driver for *v1.7.10*. Since SQLite uses *UTF8*, and has no support for the new character encoding format, using this unofficial driver will not allow you to create short URLs with extended characters stored as 4 Bytes, such as emojis.
 
-### From the original README
-
 ## What
 
 This is a custom DB layer that allows to use YOURLS with PDO + PostgreSQL. This requires **YOURLS (TBD) 1.8**, not before, not after. See [YOURLS releases](https://github.com/YOURLS/YOURLS/releases).
