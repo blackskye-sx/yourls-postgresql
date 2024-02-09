@@ -1,9 +1,9 @@
 <?php
 /*
-SQLite driver for YOURLS.
-Version: 1.2
-This driver requires YOURLS 1.7.4 -- not before -- not after!
-Author: Ozh
+PostgreSQL driver for YOURLS.
+Version: 0.1alpha
+This driver requires YOURLS (version TBD) 
+Author: blackskye.sx
 */
 
 yourls_db_sqlite_connect();
@@ -14,11 +14,27 @@ yourls_db_sqlite_connect();
 function yourls_db_sqlite_connect() {
     global $ydb;
 
-	if (!defined( 'YOURLS_DB_NAME' ))
-        yourls_die ( yourls__( 'Incorrect DB config (set YOURLS_DB_NAME)' ), yourls__( 'Fatal error' ), 503 );
+    if ( !defined( 'YOURLS_DB_USER' )
+         or !defined( 'YOURLS_DB_PASS' )
+         or !defined( 'YOURLS_DB_NAME' )
+         or !defined( 'YOURLS_DB_HOST' )
+    ) {
+        yourls_die( yourls__( 'Incorrect DB config, please refer to documentation' ), yourls__( 'Fatal error' ), 503 );
+    }
 
-    $dbname = YOURLS_USERDIR . '/' . YOURLS_DB_NAME . '.sq3';
+    $dbhost = YOURLS_DB_HOST;
+    $user = YOURLS_DB_USER;
+    $pass = YOURLS_DB_PASS;
+    $dbname = YOURLS_DB_NAME;
 
+	    // Get custom port if any
+    if ( false !== strpos( $dbhost, ':' ) ) {
+        list( $dbhost, $dbport ) = explode( ':', $dbhost );
+        $dbhost = sprintf( '%1$s;port=%2$d', $dbhost, $dbport );
+    }
+
+//	    $charset = yourls_apply_filter( 'db_connect_charset', 'utf8mb4' );
+//		do i need this?
     /**
      * Data Source Name (dsn) used to connect the DB
      *
@@ -27,7 +43,9 @@ function yourls_db_sqlite_connect() {
      * 'sqlite:/opt/databases/mydb.sq3'
      * 'pgsql:host=192.168.13.37;port=5432;dbname=omgwtf'
      */
-    $dsn = sprintf( 'sqlite:%s', $dbname );
+//    $dsn = sprintf( 'sqlite:%s', $dbname );
+    $dsn = sprintf( 'pgsql:host=%s;dbname=%s;charset=%s', $dbhost, $dbname, $charset );
+    $dsn = yourls_apply_filter( 'db_connect_custom_dsn', $dsn );
 
     /**
      * PDO driver options and attributes
@@ -37,36 +55,43 @@ function yourls_db_sqlite_connect() {
      * The driver options are passed to the PDO constructor, eg array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
      * The attribute options are then set in a foreach($attr as $k=>$v){$db->setAttribute($k, $v)} loop
      */
-    $attributes     = yourls_apply_filter( 'db_connect_attributes',    array() ); // attributes as key-value pairs
+//    $attributes     = yourls_apply_filter( 'db_connect_attributes',    array() ); // attributes as key-value pairs
+    $driver_options = yourls_apply_filter( 'db_connect_driver_option', [] ); // driver options as key-value pairs
+    $attributes = yourls_apply_filter( 'db_connect_attributes', [] ); // attributes as key-value pairs
 
-    $ydb = new \YOURLS\Database\YDB( $dsn, "", "", array(), $attributes );
+//    $ydb = new \YOURLS\Database\YDB( $dsn, "", "", array(), $attributes );
+//    $ydb->init();
+    $ydb = new \YOURLS\Database\YDB( $dsn, $user, $pass, $driver_options, $attributes );
     $ydb->init();
 
+//    // Past this point, we're connected
+//    yourls_debug_log(sprintf('Opened database %s ', $dbname));
     // Past this point, we're connected
-    yourls_debug_log(sprintf('Opened database %s ', $dbname));
+    yourls_debug_log( sprintf( 'Connected to database %s on %s ', $dbname, $dbhost ) );
 
     // Custom tables to be created upon install
-    yourls_add_filter( 'shunt_yourls_create_sql_tables', 'yourls_create_sqlite_tables' );
+    yourls_add_filter( 'shunt_yourls_create_sql_tables', 'yourls_create_postgresql_tables' );
 
     // Custom stat query to replace MySQL DATE_FORMAT with SQLite strftime
-    yourls_add_filter( 'stat_query_dates', 'yourls_sqlite_stat_query_dates' );
+    yourls_add_filter( 'stat_query_dates', 'yourls_postgresql_stat_query_dates' );
     
     // Custom stat query to get last 24 hours hits
     yourls_add_filter( 'stat_query_last24h', function() { return "SELECT 1;"; }); // just bypass original query
-    yourls_add_filter( 'pre_yourls_info_last_24h', 'yourls_sqlite_last_24h_hits' );         // use this one instead
+    yourls_add_filter( 'pre_yourls_info_last_24h', 'yourls_postgresql_last_24h_hits' );         // use this one instead
 
     // Return version for compat
-    yourls_add_filter( 'shunt_get_database_version', function() { return "5.0";} );
+    //yourls_add_filter( 'shunt_get_database_version', function() { return "5.0";} );
+	//lets see what happens
 
     // Shunt get_all_options to prevent error from SHOW TABLES query
-    yourls_add_filter( 'shunt_all_options', 'yourls_sqlite_get_all_options' );
+    yourls_add_filter( 'shunt_all_options', 'yourls_postgresql_get_all_options' );
     
     yourls_debug_mode(YOURLS_DEBUG);
 
 	return $ydb;
 }
 
-function yourls_sqlite_get_all_options() {
+function yourls_postgresql_get_all_options() {
     // Options uses a SHOW TABLES query to check if YOURLS is installed.
     // However, sqlite doesn't support that, and it hard dies there.
     // This does the equivalent in sqlite.
@@ -79,9 +104,12 @@ function yourls_sqlite_get_all_options() {
     } catch ( PDOException $e ) {
         try {
             $check = $ydb->fetchAffected(
-                sprintf(
-                    'SELECT name FROM sqlite_master WHERE type = "table" AND ' .
-                    'name LIKE "%s"', $table));
+                sprintf( 'SELECT * ' .
+			'FROM pg_catalog.pg_tables ' .
+			'WHERE schemaname != ''pg_catalog'' AND ' . 
+    			'schemaname != ''information_schema''', $table));		
+//                    'SELECT name FROM sqlite_master WHERE type = "table" AND ' .
+//                    'name LIKE "%s"', $table));
             // Table doesn't exist. Set installed to false and short circuit.
             if ($check == 0) {
                 $ydb->set_installed(false);
@@ -120,7 +148,7 @@ function yourls_sqlite_get_all_options() {
  *
  * @return array Last 24 hour hits
  */
-function yourls_sqlite_last_24h_hits() {
+function yourls_postgresql_last_24h_hits() {
     $table = YOURLS_DB_TABLE_LOG;
     $last_24h = array();
     
@@ -134,7 +162,7 @@ function yourls_sqlite_last_24h_hits() {
 	} else {
 		$keyword_range = sprintf( "= '%s'", yourls_escape( $keyword ) );
 	}
-    
+    //////////////// rewrite this query
 	$query = "SELECT
 		strftime('%H', `click_time`) AS `time`,
 		COUNT(*) AS `count`
@@ -171,7 +199,20 @@ function yourls_sqlite_last_24h_hits() {
  * @param string $query Query
  * @return string Modified query
  */
-function yourls_sqlite_stat_query_dates( $query ) {
+//////////////////////////////update this
+/*	// *** Dates : array of $dates[$year][$month][$day] = number of clicks ***
+	$sql = "SELECT
+		DATE_FORMAT(`click_time`, '%Y') AS `year`,
+		DATE_FORMAT(`click_time`, '%m') AS `month`,
+		DATE_FORMAT(`click_time`, '%d') AS `day`,
+		COUNT(*) AS `count`
+	FROM `$table`
+	WHERE `shorturl` $keyword_range
+	GROUP BY `year`, `month`, `day`;";
+    $sql = yourls_apply_filter('stat_query_dates', $sql);
+*/
+
+function yourls_postgresql_stat_query_dates( $query ) {
     // from: DATE_FORMAT(`field`, '%FORMAT')
     // to:   strftime('%FORMAT', `field`)
     preg_match_all( '/DATE_FORMAT\(\s*([^,]+),\s*([^\)]+)\)/', $query, $matches );
@@ -198,7 +239,7 @@ function yourls_sqlite_stat_query_dates( $query ) {
  * Create tables. Return array( 'success' => array of success strings, 'errors' => array of error strings )
  *
  */
-function yourls_create_sqlite_tables() {
+function yourls_create_postgresql_tables() {
     global $ydb;
     
     $error_msg = array();
@@ -207,7 +248,7 @@ function yourls_create_sqlite_tables() {
     // Create Table Query
     $create_tables = array();
     
-        
+        /////////////////////////////// fix this
     $create_tables[YOURLS_DB_TABLE_OPTIONS] = 
         'CREATE TABLE IF NOT EXISTS `'.YOURLS_DB_TABLE_OPTIONS.'` ('.
         '`option_id` bigint(20) NULL,'.
