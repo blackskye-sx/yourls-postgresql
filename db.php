@@ -77,8 +77,9 @@ function yourls_db_sqlite_connect() {
     yourls_add_filter( 'stat_query_dates', 'yourls_postgresql_stat_query_dates' );
     
     // Custom stat query to get last 24 hours hits
-    yourls_add_filter( 'stat_query_last24h', function() { return "SELECT 1;"; }); // just bypass original query
-    yourls_add_filter( 'pre_yourls_info_last_24h', 'yourls_postgresql_last_24h_hits' );         // use this one instead
+//    yourls_add_filter( 'stat_query_last24h', function() { return "SELECT 1;"; }); // just bypass original query
+    yourls_add_filter( 'stat_query_last24h', 'yourls_postgre_sql_last_24h_hits' ); // just bypass original query
+  //  yourls_add_filter( 'pre_yourls_info_last_24h', 'yourls_postgresql_last_24h_hits' );         // use this one instead
 
     // Return version for compat
     //yourls_add_filter( 'shunt_get_database_version', function() { return "5.0";} );
@@ -105,10 +106,11 @@ function yourls_postgresql_get_all_options() {
     } catch ( PDOException $e ) {
         try {
             $check = $ydb->fetchAffected(
-                sprintf( 'SELECT * ' .
-			'FROM pg_catalog.pg_tables ' .
-			'WHERE schemaname != ''pg_catalog'' AND ' . 
-    			'schemaname != ''information_schema''', $table));		
+                sprintf( "SELECT * " .
+			"FROM pg_catalog.pg_tables " .
+			"WHERE schemaname != ''pg_catalog'' AND " . 
+    			"schemaname != 'information_schema' AND " .
+			"tablename LIKE '%s'", $table));		
 //                    'SELECT name FROM sqlite_master WHERE type = "table" AND ' .
 //                    'name LIKE "%s"', $table));
             // Table doesn't exist. Set installed to false and short circuit.
@@ -136,7 +138,7 @@ function yourls_postgresql_get_all_options() {
 }
 
 /**
- * Custom SQLite query to get last 24 hours hits on a URL
+ * Custom query to get last 24 hours hits on a URL
  *
  * Just a little difference: the original MySQL query generates an array of [hour AM/PM] => [hits] but SQLite doesn't
  * understand AM & PM.
@@ -149,6 +151,48 @@ function yourls_postgresql_get_all_options() {
  *
  * @return array Last 24 hour hits
  */
+
+/*
+	// *** Last 24 hours : array of $last_24h[ $hour ] = number of click ***
+	$sql = "SELECT
+									//DATE_FORMAT(DATE_ADD(`click_time`, INTERVAL " . $offset . " HOUR), '%H %p') AS time,     <<<<<<<<<<<<<<<<<
+  	to_char(click_time + interval '1 hour','HH12 AM') as time,
+  									//to_char(timestamp '2002-04-20 17:12:12.06' + interval '". $offset ." hour','HH12:MI:SS AM')
+  	COUNT(*) AS `count`
+	FROM $table
+	WHERE shorturl $keyword_range                    		//  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+ 									//  AND DATE_ADD(`click_time`, INTERVAL " . $offset . " HOUR) > (DATE_ADD(CURRENT_TIMESTAMP, INTERVAL " . $offset . " HOUR) - INTERVAL 1 DAY)         <<<<<<<<<<<
+  	AND ( click_time + interval '". $offset ." hour' ) > ( current_time + interval '". $offset ." hour' - interval '1 day' )
+	GROUP BY time;";
+    $sql = yourls_apply_filter('stat_query_last24h', $sql);
+	$rows = $ydb->fetchObjects($sql, $keyword_binds);
+ 
+*/
+function yourls_postgre_sql_last_24h_hits() {
+    $table = YOURLS_DB_TABLE_LOG;
+    
+    global $keyword, $aggregate; // as defined in yourls-loader.php
+    
+	// Define keyword query range : either a single keyword or a list of keywords
+	if( $aggregate ) {
+		$keyword_list = yourls_get_longurl_keywords( $longurl );
+		$keyword_range = "IN ( '" . join( "', '", $keyword_list ) . "' )"; // IN ( 'blah', 'bleh', 'bloh' )
+	} else {
+		$keyword_range = sprintf( "= '%s'", yourls_escape( $keyword ) );
+	}
+    //////////////// rewrite this query
+	$query = "SELECT
+		to_char(click_time + interval '1 hour','HH12 AM') as time,
+		COUNT(*) AS count
+	FROM yourls_log
+	WHERE shorturl " . $keyword_range .
+	" AND ( click_time + interval '". $offset ." hour' ) > ( current_time + interval '". $offset ." hour' - interval '1 day' )
+	GROUP BY time;";
+    
+    return( $query );
+}
+
+/////////////////////// kill the following lines
 function yourls_postgresql_last_24h_hits() {
     $table = YOURLS_DB_TABLE_LOG;
     $last_24h = array();
@@ -163,13 +207,14 @@ function yourls_postgresql_last_24h_hits() {
 	} else {
 		$keyword_range = sprintf( "= '%s'", yourls_escape( $keyword ) );
 	}
-    //////////////// rewrite this query
+
 	$query = "SELECT
-		strftime('%H', `click_time`) AS `time`,
-		COUNT(*) AS `count`
-	FROM `yourls_log`
-	WHERE `shorturl` $keyword_range AND `click_time` > datetime('now', '-1 day')
-	GROUP BY `time`;";
+		to_char(click_time + interval '1 hour','HH12 AM') as time,
+		COUNT(*) AS count
+	FROM yourls_log
+	WHERE shorturl $keyword_range 
+	 AND ( click_time + interval '". $offset ." hour' ) > ( current_time + interval '". $offset ." hour' - interval '1 day' )
+	GROUP BY time;";
 	$rows = $ydb->get_results( $query );
     
     $_last_24h = array();
@@ -211,8 +256,20 @@ function yourls_postgresql_last_24h_hits() {
 	WHERE `shorturl` $keyword_range
 	GROUP BY `year`, `month`, `day`;";
     $sql = yourls_apply_filter('stat_query_dates', $sql);
-*/
 
+    	// *** Dates : array of $dates[$year][$month][$day] = number of clicks ***
+	$sql = "SELECT
+  		to_char(click_time, 'Y') as year,
+    		to_char(click_time, 'M') as month,
+      		to_char(click_time, 'D') as day,
+		COUNT(*) AS count
+	FROM $table
+	WHERE shorturl $keyword_range
+	GROUP BY year, month, day;";
+    $sql = yourls_apply_filter('stat_query_dates', $sql);
+	$rows = $ydb->fetchObjects($sql, $keyword_binds);
+ 
+*/
 function yourls_postgresql_stat_query_dates( $query ) {
     // from: DATE_FORMAT(`field`, '%FORMAT')
     // to:   strftime('%FORMAT', `field`)
@@ -232,8 +289,31 @@ function yourls_postgresql_stat_query_dates( $query ) {
     
     // Remove %p from date formats, as SQLite doesn't get it
     $query = preg_replace( '/\s*%p\s*/', '', $query );    
+///////////////////////////////////////////////////////////////////////////////////
+    $table = YOURLS_DB_TABLE_LOG;
+	
+    global $ydb;
+    global $keyword, $aggregate; // as defined in yourls-loader.php
     
-    return $query;
+	// Define keyword query range : either a single keyword or a list of keywords
+	if( $aggregate ) {
+		$keyword_list = yourls_get_longurl_keywords( $longurl );
+		$keyword_range = "IN ( '" . join( "', '", $keyword_list ) . "' )"; // IN ( 'blah', 'bleh', 'bloh' )
+	} else {
+		$keyword_range = sprintf( "= '%s'", yourls_escape( $keyword ) );
+	}
+
+	$sql = "SELECT
+  		to_char(click_time, 'Y') as year,
+    		to_char(click_time, 'M') as month,
+      		to_char(click_time, 'D') as day,
+		COUNT(*) AS count
+	FROM $table
+	WHERE shorturl $keyword_range
+	GROUP BY year, month, day;";
+
+	
+    return $sql;
 }
 
 /**
