@@ -1,4 +1,6 @@
-# An unofficial SQLite Driver for YOURLS 1.8.2
+# DO NOT USE YET
+# An unofficial Psotgresql Driver for YOURLS
+
 
 This is a fork of a [fork](https://github.com/reanimus/yourls-sqlite) of the [original](https://github.com/ozh/yourls-sqlite), but now outdated SQLite driver for [YOURLS](https://yourls.org/). To my knowledge, it's the only actively maintained version, now with a readily available Docker image (thanks [@Niduroki](https://github.com/Niduroki)).
 
