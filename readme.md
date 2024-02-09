@@ -1,5 +1,5 @@
 # DO NOT USE YET
-# An unofficial Psotgresql Driver for YOURLS
+# An unofficial PostgreSQL Driver for YOURLS
 
 
 This is a fork of a [fork](https://github.com/Flameborn/yourls-sqlite) in an attempt to update it for PostgreSQL
