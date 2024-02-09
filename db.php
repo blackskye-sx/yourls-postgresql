@@ -3,6 +3,7 @@
 PostgreSQL driver for YOURLS.
 Version: 0.1alpha
 This driver requires YOURLS (version TBD) 
+Forked from SQLITE driver. 
 Author: blackskye.sx
 */
 
