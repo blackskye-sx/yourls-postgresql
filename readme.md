@@ -19,7 +19,8 @@ This is experimental, mostly to show how it should be done, ie without [hacking 
 ## How
 
 * Drop these files in `/user/`, next to your `config.php` (this is *not* a plugin)
-* Load YOURLS: the first time, it will create a fresh SQlite DB in that same `user` directory
+* Update `config.php` using the same parameters/variables as MySQL, but specific to your PostgreSQL database.
+* Load YOURLS: the first time, it will create a fresh PostgreSQL DB.
 * Have fun
 
 ## FAQ
